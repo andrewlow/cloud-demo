@@ -1,0 +1,30 @@
+#!/bin/bash
+# 
+# Assumes that Cloud Logs has IAM access to COS
+# Assumes Cloud Logs and COS buckets are provisioned
+# Assumes us-south region
+
+# Let's setup some workload
+ibmcloud is vpc-create demovpc
+
+# get the vpc id
+vpcid=`ibmcloud is vpc demovpc --output JSON | jq -r ".id"`
+
+# Create a subnet
+ibmcloud is subnet-create demosubnet $vpcid --zone us-south-1 --ipv4-address-count 256
+
+subnetid=`ic is subnet demosubnet --output JSON | jq -r ".id"`
+
+# Let's make an IKS cluster
+ibmcloud ks cluster create vpc-gen2 --name demo-cluster --zone us-south-1 --version 1.29 --flavor bx2.2x8 --workers 1 --vpc-id $vpcid --subnet-id $subnetid
+
+# Now wait for the cluster to be ready
+state=`ibmcloud ks cluster get --cluster myvpc-cluster --json | jq -r '.state' `
+
+while [ $state != "normal" ] 
+do
+        status=`ibmcloud ks cluster get --cluster myvpc-cluster --json | jq '.status' `
+        echo -ne waiting - $status "\r"
+        sleep 5
+        state=`ibmcloud ks cluster get --cluster myvpc-cluster --json | jq -r '.state' `
+done
